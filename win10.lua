@@ -1,34 +1,34 @@
--- win10_gui.lua - ComputerCraft 文本模式 Windows 10 风格 GUI 框架
+-- win10_gui.lua - Windows 10 flat-style GUI for ComputerCraft
 
 local gui = {}
 
--- Windows 10 配色方案（扁平化）
+-- Windows 10 color scheme (flat)
 local colors = {
-    desktop       = colors.lightBlue,   -- 桌面背景（类似默认壁纸色）
-    windowBg      = colors.white,       -- 窗口客户区背景
-    windowBorder  = colors.lightGray,   -- 窗口细边框
-    titleActive   = colors.blue,        -- 活动标题栏背景
-    titleInactive = colors.lightGray,   -- 非活动标题栏背景
-    titleText     = colors.white,       -- 标题文字
-    closeBtn      = colors.red,         -- 关闭按钮背景
-    closeText     = colors.white,       -- 关闭按钮文字
-    maxiBtn       = colors.lightGray,   -- 最大化/最小化按钮背景
-    maxiText      = colors.black,       -- 按钮文字
-    btnFace       = colors.lightGray,   -- 普通按钮背景
-    btnText       = colors.black,       -- 按钮文字
-    btnHover      = colors.gray,        -- 按钮悬停背景
-    labelText     = colors.black,       -- 标签文字
+    desktop       = colors.lightBlue,
+    windowBg      = colors.white,
+    windowBorder  = colors.lightGray,
+    titleActive   = colors.blue,
+    titleInactive = colors.lightGray,
+    titleText     = colors.white,
+    closeBtn      = colors.red,
+    closeText     = colors.white,
+    maxiBtn       = colors.lightGray,
+    maxiText      = colors.black,
+    btnFace       = colors.lightGray,
+    btnText       = colors.black,
+    btnHover      = colors.gray,
+    labelText     = colors.black,
 }
 
--- 全局状态
-local windows = {}           -- 所有顶层窗口
-local focusedWindow = nil    -- 当前活动窗口
-local dragTarget = nil       -- 正在拖拽的窗口
+-- Global state
+local windows = {}
+local focusedWindow = nil
+local dragTarget = nil
 local dragOffsetX, dragOffsetY = 0, 0
 local mouseDown = false
 
 ------------------------------------------------------------
--- 工具函数
+-- Utility functions
 ------------------------------------------------------------
 local function writeAt(x, y, text, fg, bg)
     if x < 1 or y < 1 then return end
@@ -51,16 +51,15 @@ local function pointInRect(px, py, rx, ry, rw, rh)
     return px >= rx and px < rx + rw and py >= ry and py < ry + rh
 end
 
--- 绘制单线边框（扁平风格）
+-- Draw single-line flat border
 local function drawFlatBorder(x, y, w, h, color)
-    term.setBackgroundColor(color)
-    term.setTextColor(color)
-    -- 顶边和底边用空格填充，实际边框由背景色体现，这里采用字符边框
     term.setBackgroundColor(colors.windowBorder)
     term.setTextColor(colors.windowBorder)
-    -- 外边框用细线字符
-    local tl, tr, bl, br = "┌", "┐", "└", "┘"
-    local hz, vt = "─", "│"
+    local tl, tr, bl, br = "\140", "\141", "\142", "\143"
+    local hz, vt = "\140", "\141"  -- simplified chars
+    -- Using plain ASCII lines for compatibility
+    tl, tr, bl, br = "+", "+", "+", "+"
+    hz, vt = "-", "|"
     term.setCursorPos(x, y)
     term.write(tl .. string.rep(hz, w - 2) .. tr)
     term.setCursorPos(x, y + h - 1)
@@ -74,7 +73,7 @@ local function drawFlatBorder(x, y, w, h, color)
 end
 
 ------------------------------------------------------------
--- 基础组件
+-- Base component class
 ------------------------------------------------------------
 local Component = {}
 Component.__index = Component
@@ -99,7 +98,7 @@ end
 function Component:onClick(mx, my) end
 
 ------------------------------------------------------------
--- 标签
+-- Label
 ------------------------------------------------------------
 local Label = setmetatable({}, { __index = Component })
 Label.__index = Label
@@ -118,13 +117,13 @@ function Label:draw(xAbs, yAbs)
 end
 
 ------------------------------------------------------------
--- Win10 风格扁平按钮
+-- Flat button (Win10 style)
 ------------------------------------------------------------
 local Button = setmetatable({}, { __index = Component })
 Button.__index = Button
 
 function Button:new(x, y, text, callback)
-    local obj = Component.new(self, x, y, #text + 2, 1) -- 左右各留1格内边距
+    local obj = Component.new(self, x, y, #text + 2, 1)
     obj.text = text
     obj.callback = callback
     obj.isHovered = false
@@ -135,7 +134,7 @@ function Button:draw(xAbs, yAbs)
     if not self.visible then return end
     local bg = self.isHovered and colors.btnHover or colors.btnFace
     local fg = colors.btnText
-    local pad = string.rep(" ", 1)  -- 内边距
+    local pad = " "
     local innerText = pad .. self.text .. pad
     writeAt(xAbs, yAbs, innerText, fg, bg)
 end
@@ -149,14 +148,14 @@ function Button:onClick(mx, my)
 end
 
 ------------------------------------------------------------
--- 窗口
+-- Window
 ------------------------------------------------------------
 local Window = setmetatable({}, { __index = Component })
 Window.__index = Window
 
 function Window:new(x, y, width, height, title)
     height = math.max(height, 4)
-    width = math.max(width, 12)  -- 确保标题栏能放下按钮
+    width = math.max(width, 12)
     local obj = Component.new(self, x, y, width, height)
     obj.title = title or "Window"
     obj.children = {}
@@ -177,60 +176,51 @@ function Window:draw()
     local x, y, w, h = self.x, self.y, self.width, self.height
     local isActive = (focusedWindow == self)
 
-    -- 1. 绘制细边框
+    -- Border
     drawFlatBorder(x, y, w, h, colors.windowBorder)
 
-    -- 2. 填充客户区背景（标题栏除外）
+    -- Client area background (below title)
     fillRect(x + 1, y + 2, w - 2, h - 3, colors.windowBg)
 
-    -- 3. 标题栏（扁平无立体）
+    -- Title bar
     local titleBg = isActive and colors.titleActive or colors.titleInactive
     fillRect(x + 1, y + 1, w - 2, 1, titleBg)
 
-    -- 标题文字
-    local titleText = string.sub(self.title, 1, w - 8)  -- 为按钮留出空间
+    -- Title text
+    local titleText = string.sub(self.title, 1, w - 8)
     writeAt(x + 2, y + 1, titleText, colors.titleText, titleBg)
 
-    -- 4. 标题栏按钮（从右向左绘制）
-    local btnStartX = x + w - 2   -- 按钮区域右端（内边框内）
+    -- Title bar buttons (drawn right to left)
+    local btnStartX = x + w - 2
     local btnY = y + 1
-    local btnWidth = 2            -- 每个按钮占2格宽（字符+左右空隙）
+    local btnWidth = 2
 
     if self.showClose then
         local btnX = btnStartX - btnWidth + 1
-        local hover = false -- 悬停状态在事件循环中处理，这里先默认不悬停
-        local bg = colors.closeBtn
-        local fg = colors.closeText
-        -- 按钮背景矩形
-        fillRect(btnX, btnY, btnWidth, 1, bg)
-        writeAt(btnX + 1, btnY, "X", fg, bg)
+        fillRect(btnX, btnY, btnWidth, 1, colors.closeBtn)
+        writeAt(btnX + 1, btnY, "X", colors.closeText, colors.closeBtn)
         btnStartX = btnX - 1
     end
     if self.showMaximize then
         local btnX = btnStartX - btnWidth + 1
-        local bg = colors.maxiBtn
-        local fg = colors.maxiText
-        fillRect(btnX, btnY, btnWidth, 1, bg)
-        writeAt(btnX + 1, btnY, "□", fg, bg)
+        fillRect(btnX, btnY, btnWidth, 1, colors.maxiBtn)
+        writeAt(btnX + 1, btnY, "\127", colors.maxiText, colors.maxiBtn)  -- house symbol
         btnStartX = btnX - 1
     end
     if self.showMinimize then
         local btnX = btnStartX - btnWidth + 1
-        local bg = colors.maxiBtn
-        local fg = colors.maxiText
-        fillRect(btnX, btnY, btnWidth, 1, bg)
-        writeAt(btnX + 1, btnY, "─", fg, bg)   -- 使用长破折号
+        fillRect(btnX, btnY, btnWidth, 1, colors.maxiBtn)
+        writeAt(btnX + 1, btnY, "_", colors.maxiText, colors.maxiBtn)
         btnStartX = btnX - 1
     end
 
-    -- 5. 绘制子组件（客户区坐标转换）
+    -- Draw children
     local clientX, clientY = x + 1, y + 2
     for _, child in ipairs(self.children) do
         child:draw(clientX + child.x - 1, clientY + child.y - 1)
     end
 end
 
--- 返回标题栏按钮类型（基于坐标）
 function Window:getTitleButtonAt(mx, my)
     if not pointInRect(mx, my, self.x + 1, self.y + 1, self.width - 2, 1) then
         return nil
@@ -254,7 +244,7 @@ end
 
 function Window:isTitleBar(mx, my)
     local btnCount = (self.showClose and 1 or 0) + (self.showMaximize and 1 or 0) + (self.showMinimize and 1 or 0)
-    local btnSpace = btnCount * 2 + 1 -- 每个按钮2格，另加1格间距
+    local btnSpace = btnCount * 2 + 1
     local titleX = self.x + 1
     local titleY = self.y + 1
     local titleW = self.width - 2 - btnSpace
@@ -311,7 +301,7 @@ function Window:hasInteractiveAt(mx, my)
 end
 
 ------------------------------------------------------------
--- 全局管理
+-- GUI management
 ------------------------------------------------------------
 function gui.addWindow(window)
     table.insert(windows, window)
@@ -336,12 +326,10 @@ local function topWindowAt(mx, my)
     return nil
 end
 
--- 更新按钮悬停状态（同时处理普通按钮和标题栏按钮）
 local function updateHover(mx, my)
     local changed = false
     for _, w in ipairs(windows) do
         if w.visible and pointInRect(mx, my, w.x, w.y, w.width, w.height) then
-            -- 客户区按钮悬停
             local relX = mx - w.x - 1
             local relY = my - w.y - 2
             for _, child in ipairs(w.children) do
@@ -353,8 +341,6 @@ local function updateHover(mx, my)
                     end
                 end
             end
-            -- 标题栏按钮悬停（简化处理，仅记录状态用于重绘，这里不单独保存按钮状态，每次重绘根据鼠标位置计算）
-            -- 我们只需在绘制时判断，但为了即时反馈，可在 mouse_move 中触发重绘
         else
             for _, child in ipairs(w.children) do
                 if child.isHovered then
@@ -381,10 +367,8 @@ function gui.run()
                     local btn = target:getTitleButtonAt(mx, my)
                     if btn == "close" then
                         target:close()
-                    elseif btn == "maximize" then
-                        -- 可扩展最大化功能
-                    elseif btn == "minimize" then
-                        -- 可扩展最小化功能
+                    elseif btn == "maximize" or btn == "minimize" then
+                        -- placeholders for future implementation
                     elseif target:isTitleBar(mx, my) and not target:hasInteractiveAt(mx, my) then
                         dragTarget = target
                         dragOffsetX = mx - target.x
@@ -396,8 +380,7 @@ function gui.run()
                 end
             end
         elseif event == "mouse_up" then
-            local button = p1
-            if button == 1 then
+            if p1 == 1 then
                 dragTarget = nil
                 mouseDown = false
             end
